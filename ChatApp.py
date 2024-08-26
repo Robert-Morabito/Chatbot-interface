@@ -5,7 +5,7 @@ from tkinter import ttk
 from tkinter import simpledialog, scrolledtext
 
 from OpenaiHandler import openaiHandler
-from AnyscaleHandler import anyscaleHandler
+#from AnyscaleHandler import anyscaleHandler
 from AnthropicHandler import anthropicHandler
 from IOFunctions import save_json_data, parse_arguments
 
@@ -27,7 +27,8 @@ class ChatApp:
 		self.root = root
 		self.config = config
 		self.chat_log = []
-		self.message_widgets = {}
+		self.chat_log_history = {}
+		self.msg_widgets = {}
 		self.main_frame = ttk.Frame(self.root)
 
 		# Import images
@@ -55,7 +56,7 @@ class ChatApp:
 		self.root.title(f"{self.config['given_model']}")
 
 		# Color theme button
-		self.btn_color = ttk.Checkbutton(self.root, style='Switch.TCheckbutton', command=self._change_theme)
+		self.btn_color = ttk.Checkbtn(self.root, style='Switch.TCheckbtn', command=self._change_theme)
 		self.btn_color.pack()
 
 		self.botname = ttk.Label(self.root, text=f"Connected to \"{self.config['given_model']}\"", font=("Helvetica", 24, "bold"))
@@ -85,8 +86,8 @@ class ChatApp:
 		bottom_frame.pack(fill='x', padx=10, pady=5)
 
 		# Text entry field
-		self.msg_entry = ttk.Entry(bottom_frame, font=('Arial', 12))
-		self.msg_entry.pack(side='left', fill='x', expand=True, padx=(22, 0), pady=10)
+		self.msg_ent = ttk.Entry(bottom_frame, font=('Arial', 12))
+		self.msg_ent.pack(side='left', fill='x', expand=True, padx=(22, 0), pady=10)
 
 		# Send button
 		self.btn_send = ttk.Button(bottom_frame, text="Send", style="Accent.TButton", command=self.send_message)
@@ -100,27 +101,27 @@ class ChatApp:
 		Handles event of user sending a message and subsequent actions once the send button is clicked
 		"""
 		# Get the user message from the input field and strip
-		msg = self.msg_entry.get().strip()
+		msg = self.msg_ent.get().strip()
 
 		if msg: # Check if a blank message or not
 			msg_id = len(self.chat_log) + 1 # Assign an index to the message, for logging
 			msg_info = {
-				'id': msg_id,
+				'msg_id': msg_id,
 				'sender': 'User',
 				'content': msg
 			}
 
 			# Update the chat log, clear the input field, and draw the message to the screen
 			self.chat_log.append(msg_info)
-			self.msg_entry.delete(0, 'end')
+			self.msg_ent.delete(0, 'end')
 			self.update_window(msg_info)
 
 			# Call the LLM to respond
 			rsp = self.get_llm_response(self.concat_conversation())
 			if rsp: # Check if the LLM actually responded. Add error handling in the future
-				rsp_id = len(self.chat_log) + 1
+				msg_id += 1
 				rsp_info = {
-					'id': rsp_id,
+					'msg_id': msg_id,
 					'sender': 'Bot',
 					'content': rsp
 				}
@@ -129,48 +130,62 @@ class ChatApp:
 				self.chat_log.append(rsp_info)
 				self.update_window(rsp_info)
 
-	def edit_message(self, message_id):
+	def edit_message(self, msg_id):
+		"""
+		Handles event of user editing a previous message and subsequent actions
+		:param msg_id: Id number of message to edit
+		"""
 		# First draw the edit message elements to the screen needed for input
-		message_widget = self.message_widgets.get(message_id)
-
-		edit_entry = tk.Entry(message_widget['frame'], font=('Arial', 14), width=40)
-		edit_entry.insert(0, message_widget['info']['content'])
-		edit_entry.pack(side='right', fill='x', expand=True)
-		message_widget['label'].pack_forget()
+		msg_widget = self.msg_widgets.get(msg_id)
+		edit_ent = ttk.Entry(msg_widget['frame'], font=('Arial', 14), width=15)
+		edit_ent.insert(0, msg_widget['info']['content'])
+		edit_ent.pack(side='right', fill='x')
+		msg_widget['edit'].pack_forget()
+		msg_widget['label'].pack_forget()
 
 		# Create a send button to confirm edits
-		send_button = tk.Button(message_widget['frame'], text='Send', command=lambda: on_confirm())
-		send_button.pack(side='bottom', padx=5)
+		send_btn = ttk.Button(msg_widget['frame'], text='Send', command=lambda: on_confirm())
+		send_btn.pack(side='right')
 
 		# Function to handle confirmation of edits
 		def on_confirm():
-			new_text = edit_entry.get()
+			new_text = edit_ent.get()
 			if new_text:
 				# Backup the current state of chat_log
 				self.backup_chat_log()
-				self.delete_subsequent_messages(message_id)
-				self.msg_entry.insert(0, new_text)
+
+				# Delete all messages after this point
+				self.delete_messages(msg_id)
+
+				# Send the updated message
+				self.msg_ent.insert(0, new_text)
 				self.send_message()
 
-		edit_entry.bind('<Return>', lambda event: on_confirm())
+		# Allow user to hit enter instead of the send button
+		edit_ent.bind('<Return>', lambda event: on_confirm())
 
-		edit_entry.focus_set()
-		edit_entry.select_range(0, 'end')
+		edit_ent.focus_set()
+		edit_ent.select_range(0, 'end')
 
-	def delete_subsequent_messages(self, message_id):
+	def delete_messages(self, msg_id):
+		"""
+		Removes all message from chat log and screen from a specified message
+		:param msg_id: Id number of message to be deleted along with subsequent messages
+		"""
 		# Remove messages from UI and chat_log
-		ids_to_remove = [id for id in self.message_widgets if id >= message_id]
-		for id in ids_to_remove:
-			widget = self.message_widgets[id]
+		ids = [id for id in self.msg_widgets if id >= msg_id]
+		for id in ids:
+			widget = self.msg_widgets[id]
 			widget['frame'].destroy()  # Remove the frame from UI
-			del self.message_widgets[id]  # Remove from widget storage
-			self.chat_log = [msg for msg in self.chat_log if msg['id'] <= message_id]  # Trim the chat log
+			del self.msg_widgets[id]  # Remove from widget storage
+			self.chat_log = [msg for msg in self.chat_log if msg['msg_id'] < msg_id]  # Trim the chat log
 
 	def backup_chat_log(self):
-		# Function to backup the entire current chat log
-		if not hasattr(self, 'chat_log_history'):
-			self.chat_log_history = []
-		self.chat_log_history.append(copy.deepcopy(self.chat_log))
+		"""
+		Backs up the current chat log so that edits can be saved
+		"""
+		chat_id = len(self.chat_log_history) + 1
+		self.chat_log_history[chat_id] = {'chat_id': chat_id, 'chat_log': self.chat_log}
 
 	def get_llm_response(self, prompt):
 		"""
@@ -179,12 +194,15 @@ class ChatApp:
 		"""
 		if self.config['true_model'] == 'gpt-4-0125-preview':
 			return self.config['openai'].gpt_chat(prompt, self.config['true_model'])
-
+		elif self.config['true_model'] == 'meta-llama/Meta-Llama-3-70B-Instruct':
+			return self.config['anyscale'].gpt_chat(prompt, self.config['true_model'])
+		elif self.config['true_model'] == 'claude-3-haiku-20240307':
+			return self.config['anthropic'].gpt_chat(prompt, self.config['true_model'])
 
 	def update_window(self, msg_info):
 		"""
 		Updates the chat log with the current message and draws it to the screen
-		:param message_info: Dictionary containing message id, sender, and content
+		:param msg_info: Dictionary containing message id, sender, and content
 		"""
 		msg = msg_info['content']
 		send = msg_info['sender']
@@ -225,17 +243,17 @@ class ChatApp:
 
 		# If the sender is a user, add a button to edit the message
 		if send == "User":
-			edit_button = tk.Button(frame, image=self.edit_icon, bg=bg_color, command=lambda m_id=msg_info['id']: self.edit_message(m_id))
-			edit_button.pack(side='bottom', anchor='se', padx=(0, padx_right))
+			edit_btn = tk.Button(frame, image=self.edit_icon, bg=bg_color, command=lambda msg_id=msg_info['msg_id']: self.edit_message(msg_id))
+			edit_btn.pack(side='bottom', anchor='se', padx=(0, padx_right))
 
 		# Create a label inside the frame that contains the message contents
 		msg_label = tk.Label(frame, text=msg, bg=bg_color, fg=text_color, font=('Arial', 14), justify='left', wraplength=500)
 		msg_label.pack(side=side, anchor=anchor, padx=(padx_left, padx_right), expand=True)
 
 		if send == "User":
-			self.message_widgets[msg_info['id']] = {'frame': frame, 'label': msg_label, 'info': msg_info, 'edit': edit_button}
+			self.msg_widgets[msg_info['msg_id']] = {'frame': frame, 'label': msg_label, 'info': msg_info, 'edit': edit_btn}
 		else:
-			self.message_widgets[msg_info['id']] = {'frame': frame, 'label': msg_label, 'info': msg_info}
+			self.msg_widgets[msg_info['msg_id']] = {'frame': frame, 'label': msg_label, 'info': msg_info}
 
 		# Scroll to the bottom of the chat window as new messages are added
 		self.canvas.update_idletasks()
@@ -278,7 +296,7 @@ class ChatApp:
 		"""
 		if self.root.tk.call("ttk::style", "theme", "use") == "azure-dark":
 			self.root.tk.call("set_theme", "light")
-			for label, sender in self.message_labels:
+			for label, sender in self.msg_labels:
 				if sender == "User":
 					label.config(bg="#85c1e9", fg="#17202a")
 				else:
@@ -286,7 +304,7 @@ class ChatApp:
 					
 		else:
 			self.root.tk.call("set_theme", "dark")
-			for label, sender in self.message_labels:
+			for label, sender in self.msg_labels:
 				if sender == "User":
 					label.config(bg="#2e86c1", fg="#f8f9f9")
 				else:
@@ -295,7 +313,7 @@ class ChatApp:
 
 	def _on_close(self):
 		"""
-		Handles saving the chat log to a json file on close of the program
+		Handles saving the chat log history to a json file on close of the program
 		"""
 		a=1
 		# Custom close function to save the chat before quitting the program
@@ -316,7 +334,8 @@ def main():
 
 	# Initialize Tkinter window
 	root = tk.Tk()
-	root.geometry('1200x900')
+	#root.geometry('1200x900')
+	root.geometry('800x600')
 	root.tk.call("source", "Azure-ttk-theme-main/azure.tcl")
 	root.tk.call("set_theme", "dark")
 	app = ChatApp(root, config)
