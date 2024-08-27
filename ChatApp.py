@@ -5,7 +5,7 @@ from tkinter import ttk
 from tkinter import simpledialog, scrolledtext
 
 from OpenaiHandler import openaiHandler
-#from AnyscaleHandler import anyscaleHandler
+from AnyscaleHandler import anyscaleHandler
 from AnthropicHandler import anthropicHandler
 from IOFunctions import save_json_data, parse_arguments
 
@@ -56,10 +56,10 @@ class ChatApp:
 		self.root.title(f"{self.config['given_model']}")
 
 		# Color theme button
-		self.btn_color = ttk.Checkbtn(self.root, style='Switch.TCheckbtn', command=self._change_theme)
+		self.btn_color = ttk.Checkbutton(self.root, style='Switch.TCheckbutton', command=self._change_theme)
 		self.btn_color.pack()
 
-		self.botname = ttk.Label(self.root, text=f"Connected to \"{self.config['given_model']}\"", font=("Helvetica", 24, "bold"))
+		self.botname = ttk.Label(self.root, text=f"Connected to {self.config['given_model']}", font=("Helvetica", 24, "bold"))
 		self.botname.pack(pady=20)
 
 		# Create the main canvas to draw on, create a vertical scrollbar and link it to the canvas
@@ -93,8 +93,6 @@ class ChatApp:
 		self.btn_send = ttk.Button(bottom_frame, text="Send", style="Accent.TButton", command=self.send_message)
 		self.btn_send.pack(side='right', padx=(5, 10), pady=11)
 		self.root.bind('<Return>', self.send_message) # Binds enter to click send button as well
-
-		print(self.canvas.bbox("all"))
 
 	def send_message(self, event=None):
 		"""
@@ -195,9 +193,9 @@ class ChatApp:
 		if self.config['true_model'] == 'gpt-4-0125-preview':
 			return self.config['openai'].gpt_chat(prompt, self.config['true_model'])
 		elif self.config['true_model'] == 'meta-llama/Meta-Llama-3-70B-Instruct':
-			return self.config['anyscale'].gpt_chat(prompt, self.config['true_model'])
+			return self.config['anyscale'].anyscale_chat(prompt, self.config['true_model'])
 		elif self.config['true_model'] == 'claude-3-haiku-20240307':
-			return self.config['anthropic'].gpt_chat(prompt, self.config['true_model'])
+			return self.config['anthropic'].claude_chat(prompt, self.config['true_model'])
 
 	def update_window(self, msg_info):
 		"""

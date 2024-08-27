@@ -1,35 +1,40 @@
 from openai import OpenAI
 
 class anyscaleHandler:
-	def __init__(self, api_key: str, base_url: str = "https://api.endpoints.anyscale.com/v1"):
-		"""
-		Initialize the AnyScale API handler with the necessary API key and optional base URL.
+    def __init__(self, api_key: str, base_url: str = "https://api.endpoints.anyscale.com/"):
+        """
+        Initialize the AnyScale API handler with the necessary API key and optional base URL.
 
-		:param api_key: Your AnyScale API key.
-		:param base_url: The base URL for the AnyScale API endpoints.
-		"""
-		self.api_key = api_key
-		self.base_url = base_url
-		self.client = OpenAI(base_url=self.base_url, api_key=self.api_key)
+        :param api_key: Your AnyScale API key.
+        :param base_url: The base URL for the AnyScale API endpoints.
+        """
+        # Ensure base_url ends with a forward slash
+        if not base_url.endswith("/"):
+            base_url += "/"
 
-	def anyscale_chat(self, conversation: str, model: str, logprobs: bool = False, top_logprobs: int = None):
-		"""
-		Handle a chat request for Llama 2, Gemma, Mixtral, and Mistral
+        self.api_key = api_key
+        self.base_url = base_url
+        self.client = OpenAI(base_url=self.base_url + "v1", api_key=self.api_key)
 
-		:param conversation: The conversation history as a single string. Includes system instructions.
-		:param model: The chat completion model to use.
-		:param logprobs: If True, returns the log probabilities of each output token.
-		:param top_logprobs: If set, returns the log probabilities of the top top_logprobs tokens at each position.
-		:return: The response from the given model.
-		"""
-		messages = [{"role": "user", "content": conversation}]
-		response = self.client.chat.completions.create(
-		  model=model,
-		  messages=messages,
-		  stop=[".","\n"],
-		  max_tokens=100,
-		  temperature=0.7,
-		  logprobs=logprobs,
-		  top_logprobs=top_logprobs
-		)
-		return response.choices[0]
+    def anyscale_chat(self, conversation: str, model_id: str):
+        """
+        Handle a chat request using RayLLM models like Mistral
+
+        :param conversation: The user's query or conversation string.
+        :param model_id: The RayLLM model ID to use, e.g., 'mistralai/Mistral-7B-Instruct-v0.1'.
+        :return: The response from the given model.
+        """
+        # Set up the initial system and user messages according to the new API requirements
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": conversation}
+        ]
+
+        # Use stream=False unless you specifically need streaming responses
+        response = self.client.chat.completions.create(
+            model=model_id,
+            messages=messages,
+            temperature=0.01,
+            stream=False  # Set to True if you need streaming
+        )
+        return response.choices[0].message.content if response.choices[0].message.content is not None else "No response generated."

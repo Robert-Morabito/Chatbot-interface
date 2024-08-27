@@ -20,7 +20,7 @@ class anthropicHandler:
 		"""
 		response = self.client.messages.create(
 			model=model,
-			max_tokens=10,
+			max_tokens=800,
 			messages=[{"role": "user", "content": conversation}]
 		)
 		return response.content[0].text
