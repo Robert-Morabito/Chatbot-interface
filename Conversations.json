@@ -1,0 +1,17 @@
+{
+    "1": {
+        "chat_id": 1,
+        "chatlog": [
+            {
+                "msg_id": 1,
+                "sender": "User",
+                "content": "Hi how are you"
+            },
+            {
+                "msg_id": 2,
+                "sender": "Bot",
+                "content": "I'm just a program, but I'm here and ready to help you! How can I assist you today?"
+            }
+        ]
+    }
+}

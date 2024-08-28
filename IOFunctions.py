@@ -29,7 +29,7 @@ def save_json_data(data: List[Dict[str, Any]], file_path: str):
 		with open(file_path, 'w', encoding='utf-8') as file:
 			json.dump(data, file, ensure_ascii=False, indent=4)
 	except Exception as e:
-		print(f"Error saving JSON data: {e}", file=sys.stderr)
+		print(f"Error saving JSON data: {e}")
 
 def parse_arguments():
 	"""

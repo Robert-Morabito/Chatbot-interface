@@ -10,44 +10,51 @@ from AnthropicHandler import anthropicHandler
 from IOFunctions import save_json_data, parse_arguments
 
 
-# Function to map proper LLM names to shorthand
-def convert_names(orignal, convert):
-	return convert.get(orignal, "Invalid LLM name")
-
-
 # Dictionary mapping shorthand to proper LLM names. Change manually to test different models.
-names = {'GPT-4': 'gpt-4o-mini', 
+model_name_mapping = {'GPT-4': 'gpt-4o-mini', 
 		'Llama3': 'meta-llama/Meta-Llama-3-70B-Instruct', 
 		'Claude3': 'claude-3-haiku-20240307'}
 
+# Dictionary mapping models to their icons
+model_icons = {
+	"GPT-4": ("images/gpt.png", (24, 24)),
+	"Claude3": ("images/claude.png", (12, 12)),
+	"Llama3": ("images/llama.png", (26, 26))
+}
+
+colors = {
+	'bg_scrollable_window': '#333333',
+	'user_msg_bg_dark': '#2e86c1',
+	'user_msg_text_dark': '#f8f9f9',
+	'user_msg_bg_light': '#85c1e9',
+	'user_msg_text_light': '#17202a',
+	'bot_msg_bg_dark': '#566573',
+	'bot_msg_bg_light': '#eaecee',
+	'edit_button_bg': '#4E6473',
+}
 
 class ChatApp:
 	def __init__(self, root, config):
 		# Initialize core elements
 		self.root = root
 		self.config = config
-		self.chat_log = []
-		self.chat_log_history = {}
+		self.chatlog = []
+		self.conversations = {}
 		self.msg_widgets = {}
 		self.main_frame = ttk.Frame(self.root)
 
 		# Import images
-		if self.config['given_model'] == "GPT-4":
-			self.bot_icon = tk.PhotoImage(file="gpt.png").subsample(24,24) # These number set the size are tuned for each png
-		elif self.config['given_model'] == "Claude3":
-			self.bot_icon = tk.PhotoImage(file="claude.png").subsample(12,12)
-		else:
-			self.bot_icon = tk.PhotoImage(file="llama.png").subsample(26,26)
-		self.user_icon = tk.PhotoImage(file="User.png").subsample(12,12)
-		self.edit_icon = tk.PhotoImage(file="edit.png").subsample(150,150)
-		self.dots_icon = tk.PhotoImage(file="dots.png").subsample(8,8)
+		icon_path, subsample = model_icons.get(self.config['given_model'], ("images/bot.png", (20, 20)))
+		self.bot_icon = tk.PhotoImage(file=icon_path).subsample(*subsample)
+		self.user_icon = tk.PhotoImage(file="images/user.png").subsample(12,12)
+		self.edit_icon = tk.PhotoImage(file="images/edit.png").subsample(150,150)
+		self.dots_icon = tk.PhotoImage(file="images/dots.png").subsample(8,8)
 
 		# Draw the UI
 		self.initialize_ui()
 
-		# Bind the window close event. **Currently unfinished** uncommenting will prevent program closing
-		# self.root.protocol("WM_DELETE_WINDOW", self.on_close)
-
+		# Bind the window close event
+		self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
 	def initialize_ui(self):
 		"""
@@ -73,7 +80,7 @@ class ChatApp:
 		self.scrollbar.pack(side='right', fill='y')
 
 		# A new frame within the canvas that is scrollable, messages will be placed in here
-		self.scrollable_window = tk.Frame(self.canvas, bg='#333333')
+		self.scrollable_window = tk.Frame(self.canvas, bg=colors.get('bg_scrollable_window'))
 		self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_window, anchor="nw")
 
 		# Configure the scrollregion and bind mouse wheel to it
@@ -103,7 +110,7 @@ class ChatApp:
 		msg = self.msg_ent.get().strip()
 
 		if msg: # Check if a blank message or not
-			msg_id = len(self.chat_log) + 1 # Assign an index to the message, for logging
+			msg_id = len(self.chatlog) + 1 # Assign an index to the message, for logging
 			msg_info = {
 				'msg_id': msg_id,
 				'sender': 'User',
@@ -111,14 +118,16 @@ class ChatApp:
 			}
 
 			# Update the chat log, clear the input field, and draw the message to the screen
-			self.chat_log.append(msg_info)
+			self.chatlog.append(msg_info)
 			self.msg_ent.delete(0, 'end')
 			self.update_window(msg_info)
 
-			self.dots_label = tk.Label(self.scrollable_window, image=self.dots_icon, bg="#333333")
+			self.dots_label = tk.Label(self.scrollable_window, image=self.dots_icon, bg=colors.get("bg_scrollable_window"))
 			self.dots_label.pack(side='left', fill='x', padx=5)
 
-			self.root.after(100, self.get_llm_response)
+			self.root.after(10, self.get_llm_response)
+		else:
+			print("There was no message entered.")
 
 
 	def edit_message(self, msg_id):
@@ -155,8 +164,8 @@ class ChatApp:
 		def on_confirm():
 			new_text = edit_ent.get()
 			if new_text:
-				# Backup the current state of chat_log
-				self.backup_chat_log()
+				# Backup the current state of chatlog
+				self.backup_chatlog()
 
 				# Delete all messages after this point
 				self.delete_messages(msg_id)
@@ -171,6 +180,38 @@ class ChatApp:
 		edit_ent.focus_set()
 		edit_ent.select_range(0, 'end')
 
+	def get_llm_response(self):
+		"""
+		Retreives the LLM response given the current chat log and the true model
+		:param prompt: Prompt given to the model for a response
+		"""
+		# Create a prompt of the current conversation
+		prompt = self.concat_conversation()
+
+		# Get a response from the true model
+		model_function_map = {
+			'gpt-4o-mini': self.config['openai'].gpt_chat,
+			'meta-llama/Meta-Llama-3-70B-Instruct': self.config['anyscale'].anyscale_chat,
+			'claude-3-haiku-20240307': self.config['anthropic'].claude_chat
+		}
+		chat_function = model_function_map.get(self.config['true_model'])
+		rsp = chat_function(prompt, self.config['true_model']) if chat_function else None
+
+		if rsp: # Check if the LLM actually responded
+			msg_id = len(self.chatlog) + 1
+			rsp_info = {
+				'msg_id': msg_id,
+				'sender': 'Bot',
+				'content': rsp
+			}
+
+			# Update the chat log and draw the message to the screen
+			self.dots_label.pack_forget()
+			self.chatlog.append(rsp_info)
+			self.update_window(rsp_info)
+		else:
+			print("There was an error getting a response.")
+
 	def update_window(self, msg_info):
 		"""
 		Updates the chat log with the current message and draws it to the screen
@@ -182,11 +223,11 @@ class ChatApp:
 		if send == "User":
 			icon = self.user_icon
 			if self.root.tk.call("ttk::style", "theme", "use") == "azure-dark":
-				bg_color = "#2e86c1"
-				text_color = "#f8f9f9"
+				bg_color = colors.get("user_msg_bg_dark")
+				text_color = colors.get("user_msg_text_dark")
 			else:
-				bg_color = "#85c1e9"
-				text_color = "#17202a"
+				bg_color = colors.get("user_msg_bg_light")
+				text_color = colors.get("user_msg_text_light")
 			anchor = 'e'
 			side = 'right'
 			padx_right = 10
@@ -194,11 +235,11 @@ class ChatApp:
 		else:
 			icon = self.bot_icon
 			if self.root.tk.call("ttk::style", "theme", "use") == "azure-dark":
-				bg_color = "#566573"
-				text_color = "#f8f9f9"
+				bg_color = colors.get("bot_msg_bg_dark")
+				text_color = colors.get("user_msg_text_dark")
 			else:	
-				bg_color = "#eaecee"
-				text_color = "#17202a"
+				bg_color = colors.get("bot_msg_bg_light")
+				text_color = colors.get("user_msg_text_light")
 			anchor = 'w'
 			side = 'left'
 			padx_left = 10
@@ -214,7 +255,7 @@ class ChatApp:
 
 		# If the sender is a user, add a button to edit the message
 		if send == "User":
-			edit_btn = tk.Button(frame, image=self.edit_icon, bg="#4E6473", command=lambda msg_id=msg_info['msg_id']: self.edit_message(msg_id))
+			edit_btn = tk.Button(frame, image=self.edit_icon, bg=colors.get("edit_button_bg"), command=lambda msg_id=msg_info['msg_id']: self.edit_message(msg_id))
 			edit_btn.pack(side='bottom', anchor='se', padx=(0, padx_right))
 
 		# Create a label inside the frame that contains the message contents
@@ -230,59 +271,38 @@ class ChatApp:
 		self.canvas.update_idletasks()
 		self.canvas.yview_moveto(1)
 
-	def get_llm_response(self):
+	def convert_names(original, convert):
 		"""
-		Retreives the LLM response given the current chat log and the true model
-		:param prompt: Prompt given to the model for a response
+		Function to convert generic model names to their correct API call name
 		"""
-		prompt = self.concat_conversation()
-		if self.config['true_model'] == 'gpt-4o-mini':
-			rsp = self.config['openai'].gpt_chat(prompt, self.config['true_model'])
-		elif self.config['true_model'] == 'meta-llama/Meta-Llama-3-70B-Instruct':
-			rsp = self.config['anyscale'].anyscale_chat(prompt, self.config['true_model'])
-		elif self.config['true_model'] == 'claude-3-haiku-20240307':
-			rsp = self.config['anthropic'].claude_chat(prompt, self.config['true_model'])
-		if rsp: # Check if the LLM actually responded. Add error handling in the future
-			msg_id = len(self.chat_log) + 1
-			rsp_info = {
-				'msg_id': msg_id,
-				'sender': 'Bot',
-				'content': rsp
-			}
-
-			# Update the chat log and draw the message to the screen
-			self.dots_label.pack_forget()
-			self.chat_log.append(rsp_info)
-			self.update_window(rsp_info)
-		else:
-			print("There was an error getting a response.")
+		return convert.get(original, "Invalid LLM name")
 
 	def delete_messages(self, msg_id):
 		"""
 		Removes all message from chat log and screen from a specified message
 		:param msg_id: Id number of message to be deleted along with subsequent messages
 		"""
-		# Remove messages from UI and chat_log
+		# Remove messages from UI and chatlog
 		ids = [id for id in self.msg_widgets if id >= msg_id]
 		for id in ids:
 			widget = self.msg_widgets[id]
 			widget['frame'].destroy()  # Remove the frame from UI
 			del self.msg_widgets[id]  # Remove from widget storage
-			self.chat_log = [msg for msg in self.chat_log if msg['msg_id'] < msg_id]  # Trim the chat log
+			self.chatlog = [msg for msg in self.chatlog if msg['msg_id'] < msg_id]  # Trim the chat log
 
-	def backup_chat_log(self):
+	def backup_chatlog(self):
 		"""
 		Backs up the current chat log so that edits can be saved
 		"""
-		chat_id = len(self.chat_log_history) + 1
-		self.chat_log_history[chat_id] = {'chat_id': chat_id, 'chat_log': self.chat_log}
+		chat_id = len(self.conversations) + 1
+		self.conversations[chat_id] = {'chat_id': chat_id, 'chatlog': self.chatlog}
 
 	def concat_conversation(self):
 		"""
 		Concatenates all chat log entry contents in a single model prompt
 		"""
 		conv = ""
-		for msg in self.chat_log:
+		for msg in self.chatlog:
 			#prefix = "User: " if msg['sender'] == 'User' else "Model:"
 			conv += f"{msg['content']}\n"
 		return conv.strip()
@@ -318,9 +338,9 @@ class ChatApp:
 			for id in ids:
 				widget = self.msg_widgets[id]
 				if widget['info']['sender'] == "User":
-					widget['label'].config(bg="#85c1e9", fg="#17202a")
+					widget['label'].config(bg=colors.get("user_msg_bg_light"), fg=colors.get("user_msg_text_light"))
 				else:
-					widget['label'].config(bg="#eaecee", fg="#17202a")
+					widget['label'].config(bg=colors.get("bot_msg_bg_light"), fg=colors.get("user_msg_text_light"))
 					
 		else:
 			self.root.tk.call("set_theme", "dark")
@@ -328,19 +348,18 @@ class ChatApp:
 			for id in ids:
 				widget = self.msg_widgets[id]
 				if widget['info']['sender'] == "User":
-					widget['label'].config(bg="#2e86c1", fg="#f8f9f9")
+					widget['label'].config(bg=colors.get("user_msg_bg_dark"), fg=colors.get("user_msg_text_dark"))
 				else:
-					widget['label'].config(bg="#566573", fg="#f8f9f9")
+					widget['label'].config(bg=colors.get("bot_msg_bg_dark"), fg=colors.get("user_msg_text_dark"))
 
 
 	def on_close(self):
 		"""
 		Handles saving the chat log history to a json file on close of the program
 		"""
-		a=1
-		# Custom close function to save the chat before quitting the program
-
-		# Call save function from IOFunctions
+		self.backup_chatlog()
+		save_json_data(self.conversations, "Conversations.json")
+		self.root.destroy()
 
 
 def main():
@@ -348,7 +367,7 @@ def main():
 	args = parse_arguments()
 	config = {
 		'given_model': args.given_model,
-		'true_model': convert_names(args.true_model, names),
+		'true_model': model_name_mapping.get(args.true_model, "Invalid model."),
 		'openai': openaiHandler(api_key=args.openai_key),
 		'anyscale': anyscaleHandler(api_key=args.anyscale_key),
 		'anthropic': anthropicHandler(api_key=args.anthropic_key)
