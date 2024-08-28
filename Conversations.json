@@ -11,6 +11,61 @@
                 "msg_id": 2,
                 "sender": "Bot",
                 "content": "I'm just a program, but I'm here and ready to help you! How can I assist you today?"
+            },
+            {
+                "msg_id": 3,
+                "sender": "User",
+                "content": "I am a tall man in a red hat"
+            },
+            {
+                "msg_id": 4,
+                "sender": "Bot",
+                "content": "That sounds intriguing! Is there a story or something specific you'd like to share about being a tall man in a red hat?"
+            },
+            {
+                "msg_id": 5,
+                "sender": "User",
+                "content": "Bababooie"
+            },
+            {
+                "msg_id": 6,
+                "sender": "Bot",
+                "content": "\"Bababooie\" is a fun phrase! It’s often used in various contexts, especially in pop culture and on the internet. Are you referencing something specific, or just having some fun?"
+            }
+        ]
+    },
+    "2": {
+        "chat_id": 2,
+        "chatlog": [
+            {
+                "msg_id": 1,
+                "sender": "User",
+                "content": "Hi how are you"
+            },
+            {
+                "msg_id": 2,
+                "sender": "Bot",
+                "content": "I'm just a program, but I'm here and ready to help you! How can I assist you today?"
+            },
+            {
+                "msg_id": 3,
+                "sender": "User",
+                "content": "I am a small man in a blue hat"
+            },
+            {
+                "msg_id": 4,
+                "sender": "Bot",
+                "content": "That's a unique description! The image of a small man in a blue hat is quite vivid. Are you referring to a character or a story, or is there something specific you'd like to discuss related to that?"
+            },
+            {
+                "msg_id": 5,
+                "sender": "User",
+                "content": "If I went to a restaurant, what shirt would I wear?"
+            },
+            {
+                "msg_id": 6,
+                "sender": "Bot",
+                "content": "Choosing a shirt for a restaurant depends on the type of restaurant and the occasion. Here are a few suggestions:\n\n1. **Casual Restaurant**: A nice polo shirt or a clean, well-fitted t-shirt would work well.\n2. **Smart Casual**: A button-up shirt or a stylish blouse could be appropriate.\n3. **Fine Dining**: A dress shirt, perhaps paired with a blazer, would be more suitable.\n\nConsider the restaurant's dress code and your personal style when making your choice! What kind of restaurant are you thinking about?"
             }
         ]
     }

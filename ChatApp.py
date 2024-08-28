@@ -35,7 +35,6 @@ colors = {
 
 class ChatApp:
 	def __init__(self, root, config):
-		# Initialize core elements
 		self.root = root
 		self.config = config
 		self.chatlog = []
@@ -110,7 +109,7 @@ class ChatApp:
 		msg = self.msg_ent.get().strip()
 
 		if msg: # Check if a blank message or not
-			msg_id = len(self.chatlog) + 1 # Assign an index to the message, for logging
+			msg_id = len(self.chatlog) + 1 # Assign an id to the message, for logging
 			msg_info = {
 				'msg_id': msg_id,
 				'sender': 'User',
@@ -122,9 +121,11 @@ class ChatApp:
 			self.msg_ent.delete(0, 'end')
 			self.update_window(msg_info)
 
+			# Draw dots to indicate the chatbot is thinking until a response is given
 			self.dots_label = tk.Label(self.scrollable_window, image=self.dots_icon, bg=colors.get("bg_scrollable_window"))
 			self.dots_label.pack(side='left', fill='x', padx=5)
 
+			# This is required so that tkinter updates events properly
 			self.root.after(10, self.get_llm_response)
 		else:
 			print("There was no message entered.")
@@ -135,24 +136,27 @@ class ChatApp:
 		Handles event of user editing a previous message and subsequent actions
 		:param msg_id: Id number of message to edit
 		"""
-		# First draw the edit message elements to the screen needed for input
+		# Get the message we want to edit
 		msg_widget = self.msg_widgets.get(msg_id)
-		edit_ent = ttk.Entry(msg_widget['frame'], font=('Arial', 14), width=15)
+
+		# Draw the edit message elements to the screen needed for input
+		edit_ent = ttk.Entry(msg_widget['frame'], font=('Arial', 14), width=25)
 		edit_ent.insert(0, msg_widget['info']['content'])
 		edit_ent.pack(side='right', fill='x')
 		msg_widget['edit'].pack_forget()
 		msg_widget['label'].pack_forget()
 
 		# Create a cancel button
-		canc_btn = ttk.Button(msg_widget['frame'], text='Cancel', command=lambda: on_cancel())
-		canc_btn.pack(side='right')
+		canc_btn = ttk.Button(msg_widget['frame'], text='Cancel', width=6, command=lambda: on_cancel())
+		canc_btn.pack(side='right', padx=3)
 
 		# Create a send button to confirm edits
-		send_btn = ttk.Button(msg_widget['frame'], text='Send', command=lambda: on_confirm())
-		send_btn.pack(side='right')
+		send_btn = ttk.Button(msg_widget['frame'], text='Send', width=4, command=lambda: on_confirm())
+		send_btn.pack(side='right', padx=3)
 
 		# Function to handle cancelling of edits
 		def on_cancel():
+			# Remove edit entry elements and repack the original message and edit button
 			canc_btn.destroy()
 			send_btn.destroy()
 			edit_ent.destroy()
@@ -183,9 +187,8 @@ class ChatApp:
 	def get_llm_response(self):
 		"""
 		Retreives the LLM response given the current chat log and the true model
-		:param prompt: Prompt given to the model for a response
 		"""
-		# Create a prompt of the current conversation
+		# Create a prompt of the current chatlog
 		prompt = self.concat_conversation()
 
 		# Get a response from the true model
@@ -205,7 +208,7 @@ class ChatApp:
 				'content': rsp
 			}
 
-			# Update the chat log and draw the message to the screen
+			# Update the chat log, remove thinking dots, and draw the message to the screen
 			self.dots_label.pack_forget()
 			self.chatlog.append(rsp_info)
 			self.update_window(rsp_info)
@@ -221,25 +224,25 @@ class ChatApp:
 		send = msg_info['sender']
 		# Determine color and alignment based on the sender
 		if send == "User":
-			icon = self.user_icon
 			if self.root.tk.call("ttk::style", "theme", "use") == "azure-dark":
 				bg_color = colors.get("user_msg_bg_dark")
 				text_color = colors.get("user_msg_text_dark")
 			else:
 				bg_color = colors.get("user_msg_bg_light")
 				text_color = colors.get("user_msg_text_light")
+			icon = self.user_icon
 			anchor = 'e'
 			side = 'right'
 			padx_right = 10
 			padx_left = max(100, 250 - len(msg)*7)  # Dynamic left padding based on message length
 		else:
-			icon = self.bot_icon
 			if self.root.tk.call("ttk::style", "theme", "use") == "azure-dark":
 				bg_color = colors.get("bot_msg_bg_dark")
 				text_color = colors.get("user_msg_text_dark")
 			else:	
 				bg_color = colors.get("bot_msg_bg_light")
 				text_color = colors.get("user_msg_text_light")
+			icon = self.bot_icon
 			anchor = 'w'
 			side = 'left'
 			padx_left = 10
@@ -260,8 +263,9 @@ class ChatApp:
 
 		# Create a label inside the frame that contains the message contents
 		msg_label = tk.Label(frame, text=msg, bg=bg_color, fg=text_color, font=('Arial', 14), justify='left', wraplength=500)
-		msg_label.pack(side=side, anchor=anchor, padx=(padx_left, padx_right), expand=True)
+		msg_label.pack(side=side, anchor=anchor, padx=(padx_left, padx_right))
 
+		# Update the dictionary of widgets with the important information based on sender
 		if send == "User":
 			self.msg_widgets[msg_info['msg_id']] = {'frame': frame, 'label': msg_label, 'info': msg_info, 'edit': edit_btn, 'padxr': padx_right, 'padxl': padx_left}
 		else:
@@ -270,12 +274,6 @@ class ChatApp:
 		# Scroll to the bottom of the chat window as new messages are added
 		self.canvas.update_idletasks()
 		self.canvas.yview_moveto(1)
-
-	def convert_names(original, convert):
-		"""
-		Function to convert generic model names to their correct API call name
-		"""
-		return convert.get(original, "Invalid LLM name")
 
 	def delete_messages(self, msg_id):
 		"""
@@ -341,7 +339,6 @@ class ChatApp:
 					widget['label'].config(bg=colors.get("user_msg_bg_light"), fg=colors.get("user_msg_text_light"))
 				else:
 					widget['label'].config(bg=colors.get("bot_msg_bg_light"), fg=colors.get("user_msg_text_light"))
-					
 		else:
 			self.root.tk.call("set_theme", "dark")
 			ids = [id for id in self.msg_widgets]
@@ -375,8 +372,8 @@ def main():
 
 	# Initialize Tkinter window
 	root = tk.Tk()
-	#root.geometry('1200x900')
-	root.geometry('800x600')
+	root.geometry('1200x900')
+	#root.geometry('800x600')
 	root.tk.call("source", "Azure-ttk-theme-main/azure.tcl")
 	root.tk.call("set_theme", "dark")
 	app = ChatApp(root, config)
